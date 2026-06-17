@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>NovaSpark / Forerunner — Investor Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.7/Recharts.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{background:#0B1629;font-family:'Inter',-apple-system,sans-serif;color:#EEF4FF}</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const{createElement:h,useState}=React;
+const{BarChart,Bar,XAxis,YAxis,Tooltip,ResponsiveContainer,Line,CartesianGrid,Legend,ReferenceLine,ComposedChart,Area}=Recharts;
+const C={navy:"#0B1629",navyMid:"#0F2040",navyLt:"#162B50",navyPop:"#1E3460",teal:"#00D4B8",tealDim:"#00A896",gold:"#E8B84B",slate:"#8BA3C4",white:"#EEF4FF",muted:"#4A6580",green:"#3DD68C",red:"#E05C5C",amber:"#F4A43A"};
+const HUBS={
+"10MW":{grossCost:40514693,itc48Base:4959148,itc48EC:1653049,itc48DC:1653049,itc48E:4860000,itc48EEC:1620000,itc48EDC:1620000,transferRate:0.90,annualH2:301563,ptcRate:3.00,ptcYears:10,eligibleBasis:40514693,basisReduction:0.50,bonusPct:0.60,macrsYears:5,taxRate:0.21,opex:930000,debtPct:0.60,rate:0.075,tenor:20,eaasMWh:18475,label:"10 MW Hub",h2prod:"301,563 kg/yr",solar:"10 MW DC · 40 acres",electrolyzer:"Nexus 2500 (2.5 MW Alkaline) + HyperCell (6 MW AEM)",fuelCell:"6 MW",
+capex:{solar:"$1,680,000",waterPurif:"$1,391,102",electrolyzer:"$15,568,397",electBoP:"$7,784,198",electStacks:"$7,784,198",dryer:"$1,904,394",compression:"$2,040,000",storage:"$3,337,300",dispensing:"$73,500",fuelCell:"$15,000,000",supercap:"$1,200,000"}},
+"5MW":{grossCost:25816884,itc48Base:3354806,itc48EC:1118269,itc48DC:1118269,itc48E:2925000,itc48EEC:975000,itc48EDC:975000,transferRate:0.90,annualH2:147932,ptcRate:3.00,ptcYears:10,eligibleBasis:25816884,basisReduction:0.50,bonusPct:0.60,macrsYears:5,taxRate:0.21,opex:600000,debtPct:0.60,rate:0.075,tenor:20,eaasMWh:9238,label:"5 MW Hub",h2prod:"147,932 kg/yr",solar:"5 MW DC · 20 acres",electrolyzer:"Nexus 2500 (2.5 MW Alkaline) + HyperCell (1.75 MW AEM)",fuelCell:"3 MW",
+capex:{solar:"$840,000",waterPurif:"$736,466",electrolyzer:"$9,768,397",electBoP:"$4,884,198",electStacks:"$4,884,198",dryer:"$1,071,222",compression:"$1,080,000",storage:"$3,337,300",dispensing:"$73,500",fuelCell:"$9,000,000",supercap:"$750,000"}}
+};
+function calc(hb){
+  const i48t=hb.itc48Base+hb.itc48EC+hb.itc48DC,i48et=hb.itc48E+hb.itc48EEC+hb.itc48EDC,tot=i48t+i48et,xfer=tot*hb.transferRate,disc=tot-xfer;
+  const apt=hb.annualH2*hb.ptcRate,pt10=apt*hb.ptcYears,ptNPV=Array.from({length:hb.ptcYears},(_,i)=>apt/(1.10**(i+1))).reduce((a,b)=>a+b,0);
+  const basisRed=(hb.itc48Base+hb.itc48E)*hb.basisReduction,depB=hb.eligibleBasis-basisRed,bonYr1=depB*hb.bonusPct,macrsA=(depB-bonYr1)/hb.macrsYears,yr1sh=bonYr1*hb.taxRate,totSh=depB*hb.taxRate;
+  const netITC=hb.grossCost-xfer,netAll=hb.grossCost-xfer-ptNPV,sd=netITC*hb.debtPct,eq=netITC*(1-hb.debtPct);
+  const mr=hb.rate/12,np=hb.tenor*12,ads=(sd*mr/(1-(1+mr)**(-np)))*12;
+  const eaasRev=hb.eaasMWh*0.095*0.85,h2Rev=hb.annualH2*0.60*5.00,revYr1=eaasRev+h2Rev+250000+300000+75000,ebitYr1=revYr1-hb.opex;
+  const dscrW=(ebitYr1+apt)/ads,dscrN=ebitYr1/ads;
+  return{i48t,i48et,tot,xfer,disc,apt,pt10,ptNPV,basisRed,depB,bonYr1,macrsA,yr1sh,totSh,netITC,netAll,sd,eq,ads,ebitYr1:Math.round(ebitYr1),dscrW:Math.round(dscrW*100)/100,dscrN:Math.round(dscrN*100)/100,irr:hb.grossCost>30e6?"18-24%":"16-22%"};
+}
+const $M=v=>"$"+(v/1e6).toFixed(2)+"M";
+const $$=v=>"$"+Math.round(v).toLocaleString();
+const $K=v=>"$"+Math.round(v/1000).toLocaleString()+"K";
+const pc=v=>(v*100).toFixed(1)+"%";
+const years=Array.from({length:25},(_,i)=>2029+i);
+function buildCF(hub){
+  const hb=HUBS[hub],d=calc(hb);
+  const eaasB=hb.eaasMWh*0.095*0.85,h2B=hb.annualH2*0.60*5.00;
+  return years.map(yr=>{
+    const y=yr-2029,rev=(eaasB*(1.02**y)*(0.995**y))+(h2B*(1.015**y)*(0.995**y))+(625000*(1.02**y));
+    const opex=hb.opex*(1.025**y),ebitda=rev-opex,ptc=y<10?d.apt:0;
+    const mr=hb.rate/12,np=hb.tenor*12,ads=(d.sd*mr/(1-(1+mr)**(-np)))*12;
+    const ds=y<hb.tenor?ads:0,fcfe=ebitda+ptc-ds,dscr=ds>0?(ebitda+ptc)/ds:9.9;
+    return{year:yr,ebitda:Math.round(ebitda),ptc:Math.round(ptc),ds:Math.round(ds),fcfe:Math.round(fcfe),dscr:Math.round(dscr*100)/100};
+  });
+}
+const rC=[C.teal,C.gold,C.green,C.amber,C.slate];
+const rK=["EaaS","H2","Resiliency","Fueling","NOC"];
+const rN=["$0.095/kWh x 85% CF","$5.00/kg blended 60%","Guaranteed backup","$6-10/kg dispensed","Recurring SaaS"];
+const rV={"10MW":{EaaS:1600,H2:905,Resiliency:250,Fueling:300,NOC:75},"5MW":{EaaS:800,H2:444,Resiliency:200,Fueling:300,NOC:60}};
+const SCEN=[
+  {name:"Upside: EC+DC+H2+10%",rev:"--",h2:"+10%",ptc:"$3.00",rate:"7.5%",irr:"22-28%",color:C.green},
+  {name:"Base Case",           rev:"--",h2:"--",  ptc:"$3.00",rate:"7.5%",irr:"18-24%",color:C.teal,base:true},
+  {name:"No EC/DC Bonus",      rev:"--",h2:"--",  ptc:"$3.00",rate:"7.5%",irr:"17-23%",color:C.white},
+  {name:"H2 Price -30%",       rev:"--",h2:"-30%",ptc:"$3.00",rate:"7.5%",irr:"14-19%",color:C.white},
+  {name:"45V at $1.00/kg",     rev:"--",h2:"--",  ptc:"$1.00",rate:"7.5%",irr:"14-18%",color:C.amber},
+  {name:"Rate +200bps",        rev:"--",h2:"--",  ptc:"$3.00",rate:"9.5%",irr:"15-20%",color:C.amber},
+  {name:"Revenue -20%",        rev:"-20%",h2:"--",ptc:"$3.00",rate:"7.5%",irr:"12-16%",color:C.amber},
+  {name:"Combined Adverse",    rev:"-20%",h2:"-20%",ptc:"$1.00",rate:"9.5%",irr:"8-12%",color:C.red},
+];
+function Tip({active,payload,label}){
+  if(!active||!payload||!payload.length)return null;
+  const f=v=>v>=1000?"$"+(v/1000).toFixed(1)+"M":v<0?"($"+Math.abs(v)+"K)":"$"+v+"K";
+  return h("div",{style:{background:C.navyMid,border:"1px solid "+C.muted,padding:"10px 14px",borderRadius:6,fontSize:12}},
+    h("div",{style:{color:C.slate,marginBottom:6}},label),
+    payload.map(function(p,i){return h("div",{key:i,style:{color:p.color||C.white,marginBottom:2}},p.name+": ",h("strong",null,typeof p.value==="number"?f(p.value):p.value));})
+  );
+}
+function Panel({children,style}){return h("div",{style:Object.assign({background:C.navyMid,borderRadius:10,border:"1px solid "+C.navyLt,padding:"22px 24px"},style||{})},children);}
+function SH({num,title,sub}){return h("div",{style:{marginBottom:16}},h("div",{style:{display:"flex",alignItems:"baseline",gap:10}},h("span",{style:{fontFamily:"monospace",fontSize:11,color:C.teal,letterSpacing:"0.15em"}},num),h("span",{style:{fontSize:15,fontWeight:700,color:C.white}},title)),sub&&h("div",{style:{fontSize:11,color:C.slate,marginTop:3,paddingLeft:30}},sub));}
+function TRow({l,v,accent,bold,note}){
+  return h("tr",null,
+    h("td",{style:{padding:"8px 8px 8px 0",color:bold?C.white:C.slate,fontWeight:bold?700:400,width:"62%",lineHeight:1.4,borderBottom:"1px solid "+C.navyLt+"40"}},l,note&&h("div",{style:{fontSize:10,color:C.muted,marginTop:2}},note)),
+    h("td",{style:{padding:"8px 4px",textAlign:"right",fontWeight:bold?800:600,color:accent||(bold?C.white:C.slate),fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",borderBottom:"1px solid "+C.navyLt+"40"}},v)
+  );
+}
+function Sep(){return h("tr",null,h("td",{colSpan:2,style:{padding:"4px 0"}},h("div",{style:{height:1,background:C.navyLt}})));}
+function Drill({rows,note}){
+  return h("div",null,
+    h("table",{style:{width:"100%",borderCollapse:"collapse",fontSize:12}},
+      h("tbody",null,...rows.map(function(r,i){return r===null?h(Sep,{key:i}):h(TRow,Object.assign({key:i},r));}))
+    ),
+    note&&h("div",{style:{marginTop:14,padding:"10px 14px",background:C.navyLt,borderRadius:8,fontSize:11,color:C.slate,lineHeight:1.6,borderLeft:"3px solid "+C.teal+"60"}},h("span",{style:{color:C.teal,fontWeight:700}},"Note: "),note)
+  );
+}
+function getDrill(id,hb,d){
+  const D={
+    gross:{rows:[
+      {l:"Solar Array (ground-mount, all-in)",v:hb.capex.solar,note:"Structural + electrical BoP"},
+      {l:"Water Purification",v:hb.capex.waterPurif,note:"Nexus + HyperCell combined"},
+      {l:"Electrolyzer Equipment",v:hb.capex.electrolyzer,note:hb.electrolyzer},
+      {l:"Electrolyzer Balance of Plant",v:hb.capex.electBoP,note:"Piping, controls, ancillary"},
+      {l:"Electrolyzer Stacks",v:hb.capex.electStacks,note:"Annual replacement reserve"},
+      {l:"Hydrogen Dryer",v:hb.capex.dryer},
+      {l:"Compression (350 BAR)",v:hb.capex.compression},
+      {l:"Hydrogen Storage (2,500 kg)",v:hb.capex.storage,note:"High-pressure vessels"},
+      {l:"Hydrogen Dispensing",v:hb.capex.dispensing},
+      {l:"Fuel Cell System ("+hb.fuelCell+")",v:hb.capex.fuelCell,note:"Stationary dispatch"},
+      {l:"Supercapacitor / BESS",v:hb.capex.supercap,note:"Buffer + frequency response"},
+      null,{l:"TOTAL GROSS INSTALLED COST",v:$M(hb.grossCost),bold:true,accent:C.white},
+    ],note:"Source: Model workbooks 03.01 & 03.02. OEM spec confirmation (Nexus 2500, HyperCell, fuel cell vendor) pending."},
+    itc:{rows:[
+      {l:"Sec 48(a)(15) — Electrolysis base (30%)",v:$$(d.i48t-(hb.itc48EC+hb.itc48DC)),accent:C.teal,note:"On qualifying electrolysis basis"},
+      {l:"Sec 48 — Energy Community adder (+10%)",v:$$(hb.itc48EC),accent:C.teal,note:"Pending IRS map verification · Marshall, Harrison Co. TX"},
+      {l:"Sec 48 — Domestic Content adder (+10%)",v:$$(hb.itc48DC),accent:C.teal,note:"Pending OEM supplier certifications"},
+      {l:"Sec 48 Subtotal (50% combined rate)",v:$$(d.i48t),bold:true},
+      null,
+      {l:"Sec 48E — Fuel cell base (30%)",v:$$(d.i48et-(hb.itc48EEC+hb.itc48EDC)),accent:C.gold},
+      {l:"Sec 48E — Energy Community adder (+10%)",v:$$(hb.itc48EEC),accent:C.gold,note:"Pending EC verification"},
+      {l:"Sec 48E — Domestic Content adder (+10%)",v:$$(hb.itc48EDC),accent:C.gold,note:"Pending DC supplier certifications"},
+      {l:"Sec 48E Subtotal (50% combined rate)",v:$$(d.i48et),bold:true},
+      null,
+      {l:"Combined ITC at 50% rate (EC + DC)",v:$$(d.tot),bold:true,accent:C.white},
+      {l:"Transfer discount (10 cents per dollar)",v:"-"+$$(d.disc),accent:C.red},
+      {l:"Net ITC Transfer Proceeds at COD",v:$M(d.xfer),bold:true,accent:C.green},
+      null,
+      {l:"Conservative (30% base only, no adders)",v:$M((hb.itc48Base+hb.itc48E)*hb.transferRate),note:"No adders confirmed"},
+      {l:"With EC adder only (40%)",v:$M((hb.itc48Base+hb.itc48EC+hb.itc48E+hb.itc48EEC)*hb.transferRate),note:"EC confirmed, no DC"},
+      {l:"With EC + DC (50%) — base case above",v:$M(d.xfer),bold:true,note:"Both adders confirmed"},
+    ],note:"Transfer pricing observed: $0.85-$0.95 per $1. Modeled at $0.90. EC and DC adder qualification requires formal tax counsel opinion."},
+    ptc:{rows:[
+      {l:"Annual H2 production",v:hb.h2prod,note:"330 days/yr · conservative estimate"},
+      {l:"45V credit rate (full, <0.45 kg CO2e/kg H2)",v:"$3.00/kg",accent:C.gold,note:"Maximum rate — solar direct-wire is strongest available position"},
+      {l:"Annual PTC cash",v:$$(d.apt),bold:true,accent:C.gold},
+      {l:"Credit period",v:"10 years (2029-2038)",note:"Starts at placed-in-service date"},
+      {l:"Total 10-year undiscounted",v:$M(d.pt10),bold:true},
+      {l:"NPV at 10% discount rate",v:$M(d.ptNPV),bold:true,accent:C.gold},
+      null,
+      {l:"Sensitivity at $1.00/kg (partial qualification)",v:$$(hb.annualH2*1.00),accent:C.red,note:"Adverse scenario"},
+      {l:"Sensitivity at $2.00/kg (conservative)",v:$$(hb.annualH2*2.00),accent:C.amber,note:"Conservative scenario"},
+      {l:"Sensitivity at $3.00/kg (full, base case)",v:$$(d.apt),accent:C.green,note:"Requires three-pillar compliance"},
+    ],note:"Three-pillar compliance: additionality, temporal matching, deliverability under IRS Notice 2023-29. Solar direct-wire to electrolysis qualifies for strongest available position. Annual 45VH2-GREET carbon intensity verification required each credit year."},
+    net:{rows:[
+      {l:"Gross Installed Cost",v:$M(hb.grossCost)},
+      {l:"Less: ITC Transfer (EC + DC, 50%)",v:"-"+$M(d.xfer),accent:C.teal},
+      {l:"Net Capital Required After ITC Transfer",v:$M(d.netITC),bold:true},
+      null,
+      {l:"Less: 45V PTC NPV (10% discount, 10 years)",v:"-"+$M(d.ptNPV),accent:C.gold},
+      {l:"Net Economic Cost (ITC Transfer + PTC NPV)",v:$M(d.netAll),bold:true,accent:C.green},
+      null,
+      {l:"ITC basis reduction per Sec 50(c) (50% of base ITC)",v:"-"+$$((hb.itc48Base+hb.itc48E)*0.50),note:"Reduces depreciable basis — base rate only, not adders"},
+      {l:"Depreciation basis after ITC reduction",v:$M(d.depB)},
+      {l:"Year 1 bonus depreciation (60% of basis)",v:$M(d.bonYr1),note:"60% bonus for 2028/2029 placed-in-service under current phase-down"},
+      {l:"Year 1 tax shield (21% federal rate x bonus depr.)",v:$M(d.yr1sh),accent:C.amber,bold:true,note:"Cash equivalent benefit in Year 1"},
+      {l:"MACRS Years 2-6 annual depreciation",v:$M(d.macrsA)+"/yr",note:"Straight-line on remaining basis over 5-yr MACRS"},
+      {l:"Total depreciation tax shield (project lifetime)",v:$M(d.totSh),accent:C.amber,bold:true},
+      null,
+      {l:"Total Incentive Value (ITC + PTC NPV + Depr Shield)",v:$M(d.xfer+d.ptNPV+d.totSh),bold:true,accent:C.green},
+      {l:"Total Incentives as % of Gross Cost",v:pc((d.xfer+d.ptNPV+d.totSh)/hb.grossCost),bold:true,accent:C.green},
+    ],note:"Basis reduction: 50% applies to BASE ITC (Sec 48 + 48E at 30% only), not to EC or DC adder amounts. 60% bonus depreciation reflects current phase-down; confirm with tax counsel for exact placed-in-service year. Final asset classification and depreciation methodology require tax counsel opinion."},
+    irr:{rows:[
+      {l:"Net capital after ITC transfer",v:$M(d.netITC)},
+      {l:"Senior debt (60%)",v:$M(d.sd),note:"7.5% fixed / 20-yr amortizing"},
+      {l:"Sponsor equity required (40%)",v:$M(d.eq),bold:true,accent:C.teal},
+      {l:"Annual debt service (level payment)",v:$K(d.ads)},
+      null,
+      {l:"Year 1 EBITDA",v:$K(d.ebitYr1)},
+      {l:"Year 1 45V PTC",v:$$(d.apt),accent:C.gold},
+      {l:"DSCR Year 1 (with PTC)",v:d.dscrW+"x",accent:C.green,bold:true},
+      {l:"DSCR Year 1 (without PTC)",v:d.dscrN+"x",accent:d.dscrN>=1.25?C.green:C.amber},
+      null,
+      {l:"IRR — Upside (EC + DC + 10% H2 premium)",v:hb.grossCost>30e6?"22-28%":"20-26%",accent:C.green},
+      {l:"IRR — Base Case",v:d.irr,bold:true,accent:C.teal},
+      {l:"IRR — Combined Adverse",v:"8-12%",accent:C.red,note:"Rev -20%, H2 -20%, 45V at $1.00/kg, rate 9.5%"},
+      {l:"Equity MOIC (20-yr hold, base case)",v:"3.0-4.5x",accent:C.teal},
+      {l:"Year-12 exit at 10x EBITDA (2% tx costs)",v:hb.grossCost>30e6?"~$26-30M":"~$14-18M",bold:true,accent:C.gold},
+    ],note:"Apply Excel XIRR to the 25-yr FCFE row in model workbook 03.04 plus Year-12 exit proceeds for precise IRR. Modeled ranges are estimates. Actual returns depend on executed contracts, lender terms, and tax counsel determinations."},
+    dscr:{rows:[
+      {l:"Senior debt amount",v:$M(d.sd)},
+      {l:"Interest rate (fixed)",v:"7.5%",note:"Subject to market rate at construction close"},
+      {l:"Loan tenor",v:"20 years"},
+      {l:"Annual debt service (level payment)",v:$K(d.ads),bold:true},
+      null,
+      {l:"Year 1 EBITDA",v:$K(d.ebitYr1)},
+      {l:"Year 1 45V PTC cash",v:$$(d.apt),accent:C.gold},
+      {l:"Total coverage (EBITDA + PTC)",v:$K(d.ebitYr1+d.apt),bold:true},
+      null,
+      {l:"DSCR Year 1 — with PTC",v:d.dscrW+"x",bold:true,accent:C.green},
+      {l:"DSCR Year 1 — without PTC",v:d.dscrN+"x",accent:d.dscrN>=1.25?C.green:C.amber},
+      {l:"Lender minimum covenant",v:"1.25x",accent:C.red},
+      {l:"Coverage headroom above 1.25x floor (with PTC)",v:((d.dscrW-1.25)*100).toFixed(0)+" bps",accent:C.green},
+      null,
+      {l:"PTC expires Year 10 → DSCR drops ~0.45x",v:"Year 11 inflection",accent:C.amber,note:"Offset by 10 years of revenue escalation + debt amortization"},
+      {l:"Revenue escalation rate (contractual)",v:"1.5-2% per year",note:"EaaS and H2 price escalators"},
+      {l:"Debt fully amortized by",v:"Year 20 (2048)"},
+    ],note:"PTC provides critical coverage in years 1-10. DSCR strengthens progressively as revenue escalates. Year 11 dip is manageable given 10 years of compounded revenue growth and amortized principal at that point."},
+  };
+  const titles={gross:"Gross Installed Cost",itc:"ITC Transfer Proceeds",ptc:"Section 45V PTC",net:"Net Cost — Full Incentive Stack",irr:"Equity Returns & IRR",dscr:"Debt Service Coverage"};
+  return{title:titles[id]+" — "+hb.label,...D[id]};
+}
+function Chip({id,label,value,sub,accent,onToggle,active}){
+  return h("div",{onClick:function(){onToggle(id);},style:{background:active?C.navyPop:C.navyLt,borderRadius:8,padding:"12px 16px",borderTop:"2px solid "+accent,flex:1,minWidth:120,cursor:"pointer",transition:"all 0.15s",outline:active?"1px solid "+accent+"60":"none"}},
+    h("div",{style:{fontSize:9,color:C.slate,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:5}},label),
+    h("div",{style:{fontSize:20,fontWeight:800,color:accent,fontVariantNumeric:"tabular-nums"}},value),
+    sub&&h("div",{style:{fontSize:10,color:C.muted,marginTop:3}},sub),
+    h("div",{style:{fontSize:9,color:accent,marginTop:5,opacity:0.7}},active?"▲ Close details":"▼ Click for breakdown")
+  );
+}
+function App(){
+  var _=useState("10MW"),hub=_[0],setHub=_[1];
+  var _2=useState(null),activeChip=_2[0],setChip=_2[1];
+  var hb=HUBS[hub],d=calc(hb),cf=buildCF(hub);
+  var rv=rV[hub],total=rK.reduce(function(s,k){return s+rv[k];},0);
+  var dscrData=cf.filter(function(f){return f.ds>0;});
+  var drill=activeChip?getDrill(activeChip,hb,d):null;
+  var accentMap={gross:C.slate,itc:C.teal,ptc:C.gold,net:C.green,irr:C.teal,dscr:C.amber};
+  var chips=[
+    {id:"gross",label:"Gross Cost",   value:$M(hb.grossCost),  sub:"Total installed",           accent:C.slate},
+    {id:"itc",  label:"ITC Transfer", value:$M(d.xfer),        sub:"EC+DC 50% at $0.90/$",      accent:C.teal},
+    {id:"ptc",  label:"45V PTC / yr", value:$$(d.apt),         sub:"Yrs 1-10 at $3.00/kg",      accent:C.gold},
+    {id:"net",  label:"Net Cost",     value:$M(d.netAll),      sub:"ITC + PTC NPV + Depr Shld", accent:C.green},
+    {id:"irr",  label:"Equity IRR",   value:d.irr,             sub:"Base case / 20-yr hold",    accent:C.teal},
+    {id:"dscr", label:"DSCR Yr 1",    value:d.dscrW+"x",       sub:"(EBITDA+PTC)/Debt Svc",     accent:C.amber},
+  ];
+  var wfData=[
+    {label:"Gross",     value:Math.round(hb.grossCost/1000),  color:C.slate},
+    {label:"Sec 48",    value:-Math.round(d.i48t/1000),       color:C.teal},
+    {label:"Sec 48E",   value:-Math.round(d.i48et/1000),      color:C.tealDim},
+    {label:"Discount",  value:Math.round(d.disc/1000),        color:C.muted},
+    {label:"45V NPV",   value:-Math.round(d.ptNPV/1000),      color:C.gold},
+    {label:"Depr Shld", value:-Math.round(d.totSh/1000),      color:C.amber},
+    {label:"Net Cost",  value:Math.round(d.netAll/1000),      color:C.green},
+  ];
+  var creditData=years.slice(0,12).map(function(yr){
+    var y=yr-2029;
+    return{year:yr,ITC:yr===2029?Math.round(d.xfer/1000):0,"PTC 10MW":y<10&&hub==="10MW"?Math.round(d.apt/1000):0,"PTC 5MW":y<10&&hub==="5MW"?Math.round(d.apt/1000):0};
+  });
+
+  return h("div",{style:{background:C.navy,minHeight:"100vh",padding:"24px 20px"}},
+    h("style",null,"@keyframes fd{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}"),
+
+    // MASTHEAD
+    h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:22,flexWrap:"wrap",gap:12}},
+      h("div",null,
+        h("div",{style:{fontSize:10,color:C.teal,letterSpacing:"0.18em",textTransform:"uppercase",marginBottom:5}},"Investor Overview · Confidential · June 2026"),
+        h("h1",{style:{fontSize:22,fontWeight:800,color:C.white,margin:0,letterSpacing:"-0.02em"}},"NovaSpark / Forerunner Hydrogen Infrastructure Platform"),
+        h("div",{style:{fontSize:12,color:C.slate,marginTop:4}},hb.solar+" · "+hb.electrolyzer+" · "+hb.h2prod)
+      ),
+      h("div",{style:{display:"flex",gap:8,flexShrink:0}},
+        ["10MW","5MW"].map(function(hv){return h("button",{key:hv,onClick:function(){setHub(hv);setChip(null);},style:{padding:"8px 18px",borderRadius:6,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:hub===hv?C.teal:C.navyLt,color:hub===hv?C.navy:C.slate,transition:"all 0.15s"}},hv+" Hub");})
+      )
+    ),
+
+    // KPI CHIPS
+    h("div",{style:{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}},
+      chips.map(function(c){return h(Chip,Object.assign({key:c.id,onToggle:function(id){setChip(function(p){return p===id?null:id;});},active:activeChip===c.id},c));})
+    ),
+
+    // DRILL-DOWN
+    drill&&h("div",{style:{background:C.navyMid,borderRadius:10,border:"1px solid "+(accentMap[activeChip]||C.teal)+"70",padding:"24px 28px",marginBottom:16,animation:"fd 0.15s ease"}},
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}},
+        h("div",null,
+          h("div",{style:{fontSize:10,color:C.teal,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:5}},"Detail Breakdown"),
+          h("div",{style:{fontSize:16,fontWeight:700,color:C.white}},drill.title)
+        ),
+        h("button",{onClick:function(){setChip(null);},style:{background:"none",border:"1px solid "+C.muted,borderRadius:6,color:C.slate,cursor:"pointer",padding:"4px 14px",fontSize:12}},"x Close")
+      ),
+      h(Drill,{rows:drill.rows,note:drill.note})
+    ),
+
+    // ROW 1: Waterfall + Revenue
+    h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}},
+      h(Panel,null,
+        h(SH,{num:"01",title:"Capital & Incentive Waterfall",sub:"EC+DC adders (50%) + 45V NPV + depreciation shield"}),
+        h(ResponsiveContainer,{width:"100%",height:220},
+          h(BarChart,{data:wfData,margin:{top:4,right:10,bottom:0,left:10}},
+            h(XAxis,{dataKey:"label",tick:{fill:C.slate,fontSize:8},axisLine:false,tickLine:false}),
+            h(YAxis,{tick:{fill:C.muted,fontSize:8},axisLine:false,tickLine:false,tickFormatter:function(v){return v<0?"($"+Math.abs(v/1000).toFixed(0)+"M)":"$"+(v/1000).toFixed(0)+"M";}}),
+            h(Tooltip,{content:h(Tip,null),cursor:{fill:"rgba(255,255,255,0.04)"}}),
+            h(Bar,{dataKey:"value",radius:[4,4,0,0],label:{position:"top",fill:C.slate,fontSize:8,formatter:function(v){return v<0?"($"+Math.abs(v/1000).toFixed(1)+"M)":"$"+(v/1000).toFixed(1)+"M";}}},
+              wfData.map(function(d,i){return h(Recharts.Cell,{key:i,fill:d.color});})
+            )
+          )
+        ),
+        h("div",{style:{display:"flex",flexWrap:"wrap",gap:8,marginTop:10}},
+          wfData.map(function(wd){return h("div",{key:wd.label,style:{display:"flex",alignItems:"center",gap:5,fontSize:10}},h("div",{style:{width:8,height:8,borderRadius:2,background:wd.color}}),h("span",{style:{color:C.slate}},wd.label));})
+        )
+      ),
+      h(Panel,null,
+        h(SH,{num:"02",title:"Annual Revenue by Stream",sub:hub+" Hub · Stabilized Yr 3 · $"+(total/1000).toFixed(1)+"M total"}),
+        h("div",{style:{marginTop:4}},
+          rK.map(function(k,i){
+            var val=rv[k],p=Math.round(val/total*100);
+            return h("div",{key:k,style:{marginBottom:10}},
+              h("div",{style:{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}},
+                h("span",{style:{color:C.white}},k==="H2"?"H2 Offtake":k==="EaaS"?"EaaS (Electricity)":k==="NOC"?"NOC Software":k),
+                h("span",null,h("span",{style:{color:rC[i],fontWeight:700}},val>=1000?"$"+(val/1000).toFixed(1)+"M":"$"+val+"K"),h("span",{style:{color:C.muted,fontSize:10,marginLeft:5}},"("+p+"%)"))
+              ),
+              h("div",{style:{height:5,background:C.navyLt,borderRadius:3,overflow:"hidden"}},h("div",{style:{width:p+"%",height:"100%",background:rC[i],borderRadius:3,transition:"width 0.4s ease"}})),
+              h("div",{style:{fontSize:10,color:C.muted,marginTop:2}},rN[i])
+            );
+          })
+        )
+      )
+    ),
+
+    // ROW 2: Cash Flow + DSCR
+    h("div",{style:{display:"grid",gridTemplateColumns:"3fr 2fr",gap:14,marginBottom:14}},
+      h(Panel,null,
+        h(SH,{num:"03",title:"25-Year Cash Flow Profile",sub:"EBITDA, Debt Service, Free Cash Flow to Equity ($K)"}),
+        h(ResponsiveContainer,{width:"100%",height:220},
+          h(ComposedChart,{data:cf,margin:{top:4,right:8,bottom:0,left:0}},
+            h(CartesianGrid,{strokeDasharray:"3 3",stroke:C.navyLt}),
+            h(XAxis,{dataKey:"year",tick:{fill:C.muted,fontSize:9},axisLine:false,tickLine:false,tickFormatter:function(v){return"'"+String(v).slice(2);}}),
+            h(YAxis,{tick:{fill:C.muted,fontSize:9},axisLine:false,tickLine:false,tickFormatter:function(v){return v>=1000?"$"+v/1000+"M":v<0?"($"+Math.abs(v)+"K)":"$"+v+"K";}}),
+            h(Tooltip,{content:h(Tip,null),cursor:{fill:"rgba(255,255,255,0.04)"}}),
+            h(Legend,{iconSize:8,wrapperStyle:{fontSize:10,color:C.slate}}),
+            h(ReferenceLine,{y:0,stroke:C.muted,strokeDasharray:"3 3"}),
+            h(Area,{type:"monotone",dataKey:"ebitda",name:"EBITDA",fill:C.teal+"18",stroke:C.teal,strokeWidth:2,dot:false}),
+            h(Bar,{dataKey:"ds",name:"Debt Service",fill:C.red+"55",radius:[2,2,0,0]}),
+            h(Line,{type:"monotone",dataKey:"fcfe",name:"FCF to Equity",stroke:C.gold,strokeWidth:2.5,dot:false}),
+            h(Line,{type:"monotone",dataKey:"ptc",name:"45V PTC",stroke:C.green,strokeWidth:1.5,dot:false,strokeDasharray:"5 3"})
+          )
+        ),
+        h("div",{style:{fontSize:10,color:C.muted,marginTop:8}},"PTC ends Year 10 (2038). Debt fully amortized Year 20. Revenue escalates 1.5-2% annually.")
+      ),
+      h(Panel,null,
+        h(SH,{num:"04",title:"Debt Service Coverage",sub:"DSCR = (EBITDA + PTC) / Annual Debt Service"}),
+        h(ResponsiveContainer,{width:"100%",height:190},
+          h(ComposedChart,{data:dscrData,margin:{top:4,right:20,bottom:0,left:-10}},
+            h(CartesianGrid,{strokeDasharray:"3 3",stroke:C.navyLt}),
+            h(XAxis,{dataKey:"year",tick:{fill:C.muted,fontSize:9},axisLine:false,tickLine:false,tickFormatter:function(v){return"'"+String(v).slice(2);}}),
+            h(YAxis,{tick:{fill:C.muted,fontSize:9},axisLine:false,tickLine:false,domain:[0,4],tickFormatter:function(v){return v+"x";}}),
+            h(Tooltip,{content:h(Tip,null),cursor:{fill:"rgba(255,255,255,0.04)"}}),
+            h(ReferenceLine,{y:1.25,stroke:C.red,strokeDasharray:"4 3",label:{value:"1.25x min",fill:C.red,fontSize:9,position:"insideRight"}}),
+            h(Area,{type:"monotone",dataKey:"dscr",name:"DSCR",fill:C.teal+"20",stroke:C.teal,strokeWidth:2,dot:false})
+          )
+        ),
+        h("div",{style:{marginTop:10}},
+          [["Yr 1 with PTC",d.dscrW+"x",C.green],["Yr 1 without PTC",d.dscrN+"x",C.amber],["Lender minimum","1.25x",C.red]].map(function(row){
+            return h("div",{key:row[0],style:{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:5}},h("span",{style:{color:C.slate}},row[0]),h("span",{style:{color:row[2],fontWeight:700}},row[1]));
+          })
+        )
+      )
+    ),
+
+    // ROW 3: Tax Credits + Scenarios
+    h("div",{style:{display:"grid",gridTemplateColumns:"2fr 3fr",gap:14,marginBottom:14}},
+      h(Panel,null,
+        h(SH,{num:"05",title:"Tax Credit Cash Flow",sub:"ITC at COD + 45V PTC years 1-10 ($K)"}),
+        h(ResponsiveContainer,{width:"100%",height:190},
+          h(BarChart,{data:creditData,margin:{top:4,right:8,bottom:0,left:0}},
+            h(CartesianGrid,{strokeDasharray:"3 3",stroke:C.navyLt}),
+            h(XAxis,{dataKey:"year",tick:{fill:C.muted,fontSize:9},axisLine:false,tickLine:false,tickFormatter:function(v){return"'"+String(v).slice(2);}}),
+            h(YAxis,{tick:{fill:C.muted,fontSize:9},axisLine:false,tickLine:false,tickFormatter:function(v){return v>=1000?"$"+v/1000+"M":"$"+v+"K";}}),
+            h(Tooltip,{content:h(Tip,null),cursor:{fill:"rgba(255,255,255,0.04)"}}),
+            h(Legend,{iconSize:8,wrapperStyle:{fontSize:10,color:C.slate}}),
+            h(Bar,{dataKey:"ITC",name:"ITC Transfer",stackId:"a",fill:C.teal}),
+            h(Bar,{dataKey:"PTC 10MW",name:"PTC 10MW",stackId:"a",fill:C.gold}),
+            h(Bar,{dataKey:"PTC 5MW",name:"PTC 5MW",stackId:"a",fill:C.amber})
+          )
+        ),
+        h("div",{style:{marginTop:10}},
+          [["ITC (EC+DC)",$M(d.xfer),C.teal,"At COD"],["45V PTC 10yr",$M(d.pt10),C.gold,$$(d.apt)+"/yr"],["Depr Shield",$M(d.totSh),C.amber,"Yr 1-6"]].map(function(row){
+            return h("div",{key:row[0],style:{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}},h("span",{style:{color:C.slate}},row[0]),h("span",null,h("span",{style:{color:row[2],fontWeight:700}},row[1]),h("span",{style:{color:C.muted,fontSize:10,marginLeft:5}},row[3])));
+          })
+        )
+      ),
+      h(Panel,null,
+        h(SH,{num:"06",title:"Scenario Analysis — Equity IRR",sub:"Base case "+d.irr+" · 8 scenarios · 10 MW Hub"}),
+        h("div",{style:{overflowX:"auto"}},
+          h("table",{style:{width:"100%",borderCollapse:"collapse",fontSize:11}},
+            h("thead",null,h("tr",null,["Scenario","Rev","H2","45V","Rate","Equity IRR"].map(function(hd){return h("th",{key:hd,style:{textAlign:hd==="Scenario"?"left":"center",color:C.slate,fontWeight:600,fontSize:10,paddingBottom:8,borderBottom:"1px solid "+C.navyLt,padding:"0 8px 8px 0"}},hd);}))),
+            h("tbody",null,SCEN.map(function(s,i){
+              return h("tr",{key:s.name,style:{background:i%2===0?"transparent":C.navyLt+"50"}},
+                h("td",{style:{padding:"7px 8px 7px 0",color:C.white,fontWeight:s.base?700:400}},s.base&&h("span",{style:{background:C.teal,color:C.navy,fontSize:8,padding:"1px 5px",borderRadius:3,marginRight:6,fontWeight:700}},"BASE"),s.name),
+                [s.rev,s.h2,s.ptc,s.rate].map(function(v,j){return h("td",{key:j,style:{padding:"7px 8px",textAlign:"center",color:v==="--"?C.muted:C.slate}},v==="--"?"--":v);}),
+                h("td",{style:{padding:"7px 8px",textAlign:"center",fontWeight:700,color:s.color}},s.irr)
+              );
+            }))
+          )
+        )
+      )
+    ),
+
+    // FOOTER
+    h("div",{style:{borderTop:"1px solid "+C.navyLt,paddingTop:12,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}},
+      h("div",{style:{fontSize:10,color:C.muted}},"All figures are modeled assumptions. Not investment advice. Not an offer to sell securities. Subject to tax counsel review, engineering confirmation, and lender underwriting."),
+      h("div",{style:{fontSize:10,color:C.teal,letterSpacing:"0.1em"}},"NOVASPARK / FORERUNNER · CONFIDENTIAL")
+    )
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(h(App));
+</script>
+</body>
+</html>
